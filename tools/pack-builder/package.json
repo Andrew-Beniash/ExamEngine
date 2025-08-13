@@ -1,0 +1,21 @@
+{
+  "name": "exam-engine-pack-builder",
+  "version": "1.0.0",
+  "description": "Content pack builder for Exam Engine",
+  "main": "src/index.js",
+  "bin": {
+    "build-pack": "src/index.js"
+  },
+  "scripts": {
+    "build": "node src/index.js",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "dependencies": {
+    "csv-parser": "^3.0.0",
+    "crypto": "^1.0.1",
+    "fs-extra": "^11.0.0",
+    "yargs": "^17.0.0"
+  },
+  "author": "Exam Engine Team",
+  "license": "MIT"
+}

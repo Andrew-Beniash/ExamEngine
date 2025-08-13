@@ -1,0 +1,24 @@
+{
+  "id": "cbap-sample",
+  "version": "1.0.0",
+  "name": "CBAP Sample Pack",
+  "description": "Sample questions for CBAP certification preparation",
+  "author": "Exam Engine Team",
+  "minAppVersion": "1.0.0",
+  "checksum": "placeholder",
+  "signature": "placeholder",
+  "createdAt": 0,
+  "files": {
+    "questions": "questions.jsonl",
+    "examTemplates": "examTemplates.json",
+    "tips": "tips.json",
+    "media": ["images/diagram1.png"]
+  },
+  "metadata": {
+    "totalQuestions": 5,
+    "totalTips": 3,
+    "totalTemplates": 1,
+    "topics": ["planning", "elicitation", "requirements"],
+    "supportedLanguages": ["en-US"]
+  }
+}
