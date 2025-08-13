@@ -1,9 +1,11 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { packsApi } from '../../data/api/packsApi';
+import { examSessionReducer } from '../../features/exam-engine/state';
 
 export const store = configureStore({
   reducer: {
     [packsApi.reducerPath]: packsApi.reducer,
+    examSession: examSessionReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
