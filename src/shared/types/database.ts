@@ -1,6 +1,5 @@
 export type QuestionType = 'single' | 'multi' | 'scenario' | 'order';
 export type Difficulty = 'easy' | 'med' | 'hard';
-export type PackStatus = 'active' | 'disabled' | 'updating';
 
 export interface Choice {
   id: string;
@@ -36,25 +35,25 @@ export interface ExamTemplate {
   name: string;
   durationMinutes: number;
   sections: ExamSection[];
-  calculatorRules?: Record<string, unknown>;
+  calculatorRules?: any;
   packId: string;
 }
 
 export interface Attempt {
   id: string;
-  templateId?: string;
+  templateId?: string | null;
   packId: string;
   startedAt: number;
-  endedAt?: number;
-  score?: number;
-  summary?: PerTopicStats;
+  endedAt?: number | null;
+  score?: number | null;
+  summary?: any;
   deviceGuid: string;
 }
 
 export interface AttemptItem {
   attemptId: string;
   questionId: string;
-  given?: string[];
+  given: string[];
   correct: boolean;
   timeSpentMs: number;
 }
@@ -73,13 +72,13 @@ export interface Pack {
   sha256: string;
   signature: string;
   installedAt: number;
-  status: PackStatus;
+  status: 'active' | 'disabled' | 'updating';
 }
 
 export interface PerTopicStats {
   [topicId: string]: {
     correct: number;
     total: number;
-    proficiency?: number;
+    proficiency?: number; // EWMA score
   };
 }

@@ -71,7 +71,6 @@ const QuestionPlayer: React.FC<QuestionPlayerProps> = ({
       question: currentQuestion,
       selectedAnswers,
       onAnswerChange: handleAnswerChange,
-      isReviewMode,
       showCorrectAnswer: showCorrectAnswers,
       disabled: isReviewMode && !showCorrectAnswers,
     };
@@ -115,8 +114,8 @@ const QuestionPlayer: React.FC<QuestionPlayerProps> = ({
       <QuestionNavigation
         currentIndex={currentIndex}
         totalQuestions={questions.length}
-        isFlagged={flaggedQuestions.has(currentQuestionId)}
-        isBookmarked={bookmarkedQuestions.has(currentQuestionId)}
+        isFlagged={flaggedQuestions.has(currentQuestionId || '')}
+        isBookmarked={bookmarkedQuestions.has(currentQuestionId || '')}
         onPrevious={handlePrevious}
         onNext={handleNext}
         onFlag={handleFlag}

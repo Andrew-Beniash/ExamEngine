@@ -1,11 +1,11 @@
-import { Question, Attempt, AttemptItem, Tip, Pack, PerTopicStats, Difficulty } from '../../shared/types/database';
+import { Question, Difficulty } from '../../shared/types/database';
 
 export interface QuestionSamplingParams {
   topicIds: string[];
   difficulty?: Difficulty[];
-  limit: number;
-  excludeIds?: string[];
   packId?: string;
+  excludeIds?: string[];
+  limit: number;
 }
 
 export interface IQuestionRepository {
@@ -21,42 +21,21 @@ export interface IQuestionRepository {
 }
 
 export interface IAttemptRepository {
-  getById(id: string): Promise<Attempt | null>;
-  startAttempt(templateId: string | undefined, packId: string, deviceGuid: string): Promise<string>;
+  startAttempt(sessionId: string, templateId: string | null, packId: string): Promise<void>;
   recordAnswer(
     attemptId: string,
     questionId: string,
     selectedIds: string[],
-    timeSpentMs: number
+    timeSpentMs: number,
+    isCorrect: boolean
   ): Promise<void>;
-  finalizeAttempt(attemptId: string): Promise<{
-    score: number;
-    perTopicStats: PerTopicStats;
-  }>;
-  getAttemptItems(attemptId: string): Promise<AttemptItem[]>;
-  getRecentAttempts(deviceGuid: string, limit?: number): Promise<Attempt[]>;
-  updateAttempt(attempt: Attempt): Promise<void>;
-  delete(id: string): Promise<void>;
-}
-
-export interface ITipRepository {
-  getById(id: string): Promise<Tip | null>;
-  getByTopics(topicIds: string[], packId?: string): Promise<Tip[]>;
-  search(query: string, topicIds?: string[]): Promise<Tip[]>;
-  create(tip: Tip): Promise<void>;
-  createMany(tips: Tip[]): Promise<void>;
-  update(tip: Tip): Promise<void>;
-  delete(id: string): Promise<void>;
-  deleteByPackId(packId: string): Promise<void>;
-}
-
-export interface IPackRepository {
-  getById(id: string): Promise<Pack | null>;
-  getAll(): Promise<Pack[]>;
-  getActive(): Promise<Pack[]>;
-  create(pack: Pack): Promise<void>;
-  update(pack: Pack): Promise<void>;
-  updateStatus(id: string, status: Pack['status']): Promise<void>;
-  delete(id: string): Promise<void>;
-  isInstalled(id: string, version: string): Promise<boolean>;
+  finalizeAttempt(
+    attemptId: string,
+    score: number,
+    summary: any
+  ): Promise<void>;
+  getById(id: string): Promise<any>;
+  getByDeviceGuid(deviceGuid: string, limit?: number): Promise<any[]>;
+  getRecentAttempts(limit?: number): Promise<any[]>;
+  deleteAttempt(id: string): Promise<void>;
 }

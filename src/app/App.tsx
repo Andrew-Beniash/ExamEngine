@@ -8,6 +8,7 @@ import DatabaseManager from '../data/database/DatabaseManager';
 import { RepositoryFactory } from '../data/repositories/RepositoryFactory';
 import { CryptoUtils } from '../shared/utils/crypto';
 import { SecureStorage } from '../data/storage/SecureStorage';
+import { SeedDataManager } from '../data/seedData';
 import { store } from './store';
 
 const AppContent = () => {
@@ -36,6 +37,10 @@ const AppContent = () => {
       // Initialize repositories
       const db = dbManager.getDatabase();
       RepositoryFactory.initializeRepositories(db);
+      
+      // Seed sample questions
+      await SeedDataManager.seedSampleQuestions();
+      console.log('Sample data seeded');
       
       setIsReady(true);
       console.log('App initialized successfully');

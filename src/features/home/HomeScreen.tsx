@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Buffer } from 'buffer';
 import { PackValidator } from '../../data/validation/PackValidator';
 import { PackVerifier } from '../../data/verification/PackVerifier';
 import { CryptoUtils } from '../../shared/utils/crypto';
 import { useExamSession } from '../../shared/hooks';
-import { RepositoryFactory } from '../../data/repositories/RepositoryFactory';
+import { ExamController } from '../exam-engine/domain';
 
 const HomeScreen = () => {
   const [validationResult, setValidationResult] = useState<string>('');
   const [cryptoResult, setCryptoResult] = useState<string>('');
+  const [isStarting, setIsStarting] = useState(false);
   const examSession = useExamSession();
+  const examController = ExamController.getInstance();
+  const navigation = useNavigation();
 
   const testValidation = () => {
     const validator = new PackValidator();
@@ -67,78 +71,189 @@ const HomeScreen = () => {
     }
   };
 
-  const startPracticeSession = async () => {
+  const startQuickPractice = async () => {
+    setIsStarting(true);
     try {
-      // Get sample questions from repository
-      const questionRepo = RepositoryFactory.getQuestionRepository();
-      const sampleQuestions = await questionRepo.sampleQuestions({
-        topicIds: ['planning', 'elicitation'], // Any topics
-        limit: 5, // Start with 5 questions
+      // Get questions using ExamController
+      const questions = await examController.getQuestionsForExam({
+        mode: 'practice',
+        packId: 'sample-pack',
+        questionCount: 5,
+        durationMinutes: 10,
       });
 
-      if (sampleQuestions.length === 0) {
-        Alert.alert('No Questions', 'No questions found. Please install a content pack first.');
+      if (questions.length === 0) {
+        Alert.alert('No Questions', 'No questions found. Make sure the database is seeded with sample questions.');
         return;
       }
 
-      // Start exam session
+      // Start exam session with actual question data
       examSession.startExamSession({
         sessionId: `practice_${Date.now()}`,
-        packId: 'sample',
-        questions: sampleQuestions.map(q => q.id),
+        packId: 'sample-pack',
+        questions: questions.map(q => q.id),
         durationMs: 10 * 60 * 1000, // 10 minutes
       });
 
-      Alert.alert('Session Started', `Practice session started with ${sampleQuestions.length} questions`);
+      // Navigate to exam screen
+      navigation.navigate('Exam' as never);
+
+      Alert.alert(
+        'Practice Started!', 
+        `Started practice session with ${questions.length} questions`
+      );
     } catch (error) {
       Alert.alert('Error', `Failed to start practice session: ${error}`);
+      console.error('Failed to start practice:', error);
+    } finally {
+      setIsStarting(false);
     }
   };
 
-  const endCurrentSession = () => {
-    examSession.finishSession();
-    Alert.alert('Session Ended', 'Practice session has been ended');
+  const startCustomPractice = async () => {
+    setIsStarting(true);
+    try {
+      const questions = await examController.getQuestionsForExam({
+        mode: 'custom',
+        packId: 'sample-pack',
+        topicIds: ['requirements-analysis', 'elicitation'],
+        questionCount: 8,
+        difficulty: ['med', 'hard'],
+        durationMinutes: 15,
+      });
+
+      if (questions.length === 0) {
+        Alert.alert('No Questions', 'No questions found for the selected criteria.');
+        return;
+      }
+
+      examSession.startExamSession({
+        sessionId: `custom_${Date.now()}`,
+        packId: 'sample-pack',
+        questions: questions.map(q => q.id),
+        durationMs: 15 * 60 * 1000, // 15 minutes
+      });
+
+      // Navigate to exam screen
+      navigation.navigate('Exam' as never);
+
+      Alert.alert(
+        'Custom Practice Started!', 
+        `Started with ${questions.length} medium/hard questions`
+      );
+    } catch (error) {
+      Alert.alert('Error', `Failed to start custom practice: ${error}`);
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  const endCurrentSession = async () => {
+    try {
+      if (examSession.sessionId && examSession.questions.length > 0) {
+        // Get actual question data for results calculation
+        const questions = await examController.getQuestionsForExam({
+          mode: 'practice',
+          packId: examSession.packId || 'sample-pack',
+          questionCount: examSession.questions.length,
+        });
+
+        // Calculate and display results
+        const results = examController.calculateResults(
+          examSession.sessionId,
+          questions,
+          examSession.answers,
+          Date.now() - (examSession.startTime || Date.now())
+        );
+
+        Alert.alert(
+          'Session Results',
+          `Score: ${results.score.toFixed(1)}%\n` +
+          `Correct: ${results.correctAnswers}/${results.totalQuestions}\n` +
+          `Time: ${Math.round(results.timeSpent / 1000 / 60)} minutes`
+        );
+
+        // Save to database
+        await examController.saveExamAttempt(
+          examSession.sessionId,
+          questions,
+          examSession.answers,
+          examSession.timeSpentPerQuestion,
+          examSession.packId || 'sample-pack'
+        );
+      }
+
+      examSession.finishSession();
+    } catch (error) {
+      console.error('Error ending session:', error);
+      examSession.finishSession();
+      Alert.alert('Session Ended', 'Session ended (results may not be saved)');
+    }
   };
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>Home</Text>
-      <Text style={styles.subtitle}>Mode selection, continue exam, quick start</Text>
+      <Text style={styles.title}>Exam Engine Home</Text>
+      <Text style={styles.subtitle}>Start practicing with real questions!</Text>
       
-      {/* Redux State Testing */}
+      {/* Exam Session Controls */}
       <View style={styles.sessionContainer}>
-        <Text style={styles.sectionTitle}>Exam Session State</Text>
-        <Text style={styles.stateText}>
-          Active: {examSession.isActive ? 'Yes' : 'No'}
-        </Text>
-        <Text style={styles.stateText}>
-          Questions: {examSession.totalQuestions}
-        </Text>
-        <Text style={styles.stateText}>
-          Current: {examSession.currentQuestionIndex + 1}
-        </Text>
-        <Text style={styles.stateText}>
-          Answers: {Object.keys(examSession.answers).length}
-        </Text>
+        <Text style={styles.sectionTitle}>Practice Sessions</Text>
         
         {!examSession.isActive ? (
-          <TouchableOpacity style={styles.startButton} onPress={startPracticeSession}>
-            <Text style={styles.buttonText}>Start Practice Session</Text>
-          </TouchableOpacity>
+          <View>
+            <TouchableOpacity 
+              style={styles.practiceButton} 
+              onPress={startQuickPractice}
+              disabled={isStarting}
+            >
+              <Text style={styles.buttonText}>
+                {isStarting ? 'Starting...' : 'Quick Practice (5 questions)'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.customButton} 
+              onPress={startCustomPractice}
+              disabled={isStarting}
+            >
+              <Text style={styles.buttonText}>
+                {isStarting ? 'Starting...' : 'Custom Practice (8 questions)'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         ) : (
-          <TouchableOpacity style={styles.endButton} onPress={endCurrentSession}>
-            <Text style={styles.buttonText}>End Session</Text>
-          </TouchableOpacity>
+          <View>
+            <Text style={styles.stateText}>✅ Session Active</Text>
+            <Text style={styles.stateText}>
+              Progress: {examSession.currentQuestionIndex + 1}/{examSession.totalQuestions}
+            </Text>
+            <Text style={styles.stateText}>
+              Answered: {Object.keys(examSession.answers).length} questions
+            </Text>
+            <Text style={styles.stateText}>
+              Flagged: {examSession.flaggedQuestions.length}
+            </Text>
+            
+            <TouchableOpacity style={styles.endButton} onPress={endCurrentSession}>
+              <Text style={styles.buttonText}>End Session & See Results</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
-      
-      <TouchableOpacity style={styles.button} onPress={testValidation}>
-        <Text style={styles.buttonText}>Test Pack Validation</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity style={[styles.button, styles.cryptoButton]} onPress={testCrypto}>
-        <Text style={styles.buttonText}>Test Crypto & Verification</Text>
-      </TouchableOpacity>
+
+      {/* Debug/Test Controls */}
+      <View style={styles.debugContainer}>
+        <Text style={styles.sectionTitle}>Debug & Testing</Text>
+        
+        <TouchableOpacity style={styles.button} onPress={testValidation}>
+          <Text style={styles.buttonText}>Test Pack Validation</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={[styles.button, styles.cryptoButton]} onPress={testCrypto}>
+          <Text style={styles.buttonText}>Test Crypto & Verification</Text>
+        </TouchableOpacity>
+      </View>
       
       {validationResult ? (
         <View style={styles.resultContainer}>
@@ -176,7 +291,15 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   sessionContainer: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F0F9FF',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  debugContainer: {
+    backgroundColor: '#F9FAFB',
     padding: 16,
     borderRadius: 8,
     marginBottom: 20,
@@ -185,29 +308,36 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 12,
+    color: '#374151',
   },
   stateText: {
     fontSize: 14,
-    marginBottom: 4,
+    marginBottom: 6,
     color: '#374151',
   },
-  startButton: {
+  practiceButton: {
     backgroundColor: '#059669',
-    padding: 12,
-    borderRadius: 6,
-    marginTop: 12,
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  customButton: {
+    backgroundColor: '#7C3AED',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
   },
   endButton: {
     backgroundColor: '#EF4444',
-    padding: 12,
-    borderRadius: 6,
+    padding: 14,
+    borderRadius: 8,
     marginTop: 12,
   },
   button: {
     backgroundColor: '#2B5CE6',
     padding: 15,
     borderRadius: 8,
-    marginBottom: 20,
+    marginBottom: 12,
   },
   cryptoButton: {
     backgroundColor: '#059669',
@@ -216,6 +346,7 @@ const styles = StyleSheet.create({
     color: 'white',
     textAlign: 'center',
     fontWeight: '600',
+    fontSize: 16,
   },
   resultContainer: {
     backgroundColor: '#F9FAFB',
