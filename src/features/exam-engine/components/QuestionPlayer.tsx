@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, SafeAreaView, Text } from 'react-native';
 import { Question } from '../../../shared/types/database';
 import SingleChoiceRenderer from './renderers/SingleChoiceRenderer';
 import MultiChoiceRenderer from './renderers/MultiChoiceRenderer';
+import ScenarioRenderer from './renderers/ScenarioRenderer';
 import QuestionNavigation from './QuestionNavigation';
 
 interface QuestionPlayerProps {
@@ -81,8 +82,7 @@ const QuestionPlayer: React.FC<QuestionPlayerProps> = ({
       case 'multi':
         return <MultiChoiceRenderer {...commonProps} />;
       case 'scenario':
-        // For now, treat scenarios like single choice
-        return <SingleChoiceRenderer {...commonProps} />;
+        return <ScenarioRenderer {...commonProps} />;
       case 'order':
         // TODO: Implement OrderingRenderer
         return <SingleChoiceRenderer {...commonProps} />;
