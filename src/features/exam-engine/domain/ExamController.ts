@@ -145,6 +145,39 @@ export class ExamController {
     await attemptRepo.finalizeAttempt(sessionId, results.score, results.perTopicStats);
   }
 
+  /**
+   * Save current exam progress (for auto-save)
+   */
+  async saveExamProgress(
+    sessionId: string,
+    answers: Record<string, string[]>,
+    timeSpentPerQuestion: Record<string, number>
+  ): Promise<void> {
+    try {
+      const attemptRepo = RepositoryFactory.getAttemptRepository();
+      
+      // Save individual answers that have been updated
+      for (const [questionId, selectedIds] of Object.entries(answers)) {
+        const timeSpent = timeSpentPerQuestion[questionId] || 0;
+        
+        // We don't know if it's correct yet, so we'll save with a placeholder
+        // This will be updated when the exam is finalized
+        await attemptRepo.recordAnswer(
+          sessionId,
+          questionId,
+          selectedIds,
+          timeSpent,
+          false // Placeholder - will be calculated on final submission
+        );
+      }
+      
+      console.log(`Progress saved for session ${sessionId}: ${Object.keys(answers).length} answers`);
+    } catch (error) {
+      console.error('Failed to save exam progress:', error);
+      throw error;
+    }
+  }
+
   private async getPracticeQuestions(params: StartExamParams): Promise<Question[]> {
     const questionRepo = RepositoryFactory.getQuestionRepository();
     

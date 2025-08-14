@@ -5,6 +5,8 @@ import { RepositoryFactory } from '../../data/repositories/RepositoryFactory';
 import { Question } from '../../shared/types/database';
 import { ExamController } from './domain';
 import QuestionPlayer from './components/QuestionPlayer';
+import ExamTimer from './components/ExamTimer';
+import { useAutoSave } from './hooks/useAutoSave';
 
 const ExamScreen = () => {
   const examSession = useExamSession();
@@ -12,6 +14,9 @@ const ExamScreen = () => {
   const [loading, setLoading] = useState(true);
   const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now());
   const examController = ExamController.getInstance();
+
+  // Enable auto-save functionality
+  useAutoSave(questions);
 
   const loadQuestions = useCallback(async () => {
     try {
@@ -116,6 +121,55 @@ const ExamScreen = () => {
     examSession.startReview(true); // Show correct answers in review
   };
 
+  const handleTimeExpired = useCallback(async () => {
+    Alert.alert(
+      'Time Expired!',
+      'Your exam time has expired. The exam will be automatically submitted.',
+      [{ text: 'OK', onPress: () => {} }]
+    );
+
+    // Auto-submit the exam
+    try {
+      const results = examController.calculateResults(
+        examSession.sessionId!,
+        questions,
+        examSession.answers,
+        Date.now() - (examSession.startTime || Date.now())
+      );
+
+      await examController.saveExamAttempt(
+        examSession.sessionId!,
+        questions,
+        examSession.answers,
+        examSession.timeSpentPerQuestion,
+        examSession.packId || 'sample-pack',
+        examSession.templateId || undefined
+      );
+
+      examSession.handleTimeExpired();
+
+      // Show final results after a brief delay
+      setTimeout(() => {
+        Alert.alert(
+          'Exam Auto-Submitted',
+          `Final Score: ${results.score.toFixed(1)}%\n` +
+          `Correct: ${results.correctAnswers}/${results.totalQuestions}\n` +
+          `Time: Complete\n\n` +
+          `Topic Breakdown:\n` +
+          Object.entries(results.perTopicStats)
+            .map(([topic, stats]) => {
+              const topicStats = stats as { correct: number; total: number; percentage: number };
+              return `${topic}: ${topicStats.percentage.toFixed(0)}%`;
+            })
+            .join('\n')
+        );
+      }, 1000);
+    } catch (error) {
+      console.error('Error auto-submitting exam:', error);
+      examSession.handleTimeExpired();
+    }
+  }, [examController, examSession, questions]);
+
   if (!examSession.isActive) {
     return (
       <View style={styles.centerContainer}>
@@ -146,7 +200,7 @@ const ExamScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* Header with progress and controls */}
+      {/* Header with progress, timer, and controls */}
       <View style={styles.header}>
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
@@ -155,6 +209,14 @@ const ExamScreen = () => {
           <Text style={styles.answeredText}>
             Answered: {Object.keys(examSession.answers).length}
           </Text>
+        </View>
+
+        {/* Timer in the center */}
+        <View style={styles.timerContainer}>
+          <ExamTimer 
+            onTimeExpired={handleTimeExpired}
+            showWarnings={true}
+          />
         </View>
         
         <View style={styles.headerButtons}>
@@ -226,6 +288,10 @@ const styles = StyleSheet.create({
   progressContainer: {
     flex: 1,
   },
+  timerContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
   progressText: {
     fontSize: 16,
     fontWeight: '600',
@@ -239,6 +305,8 @@ const styles = StyleSheet.create({
   headerButtons: {
     flexDirection: 'row',
     gap: 8,
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   reviewButton: {
     backgroundColor: '#7C3AED',

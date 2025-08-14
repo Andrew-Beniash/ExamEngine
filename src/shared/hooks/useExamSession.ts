@@ -6,9 +6,14 @@ import {
   navigateToQuestion,
   flagQuestion,
   bookmarkQuestion,
+  updateTimer,
+  pauseTimer,
+  resumeTimer,
   endSession,
   enterReviewMode,
   clearSession,
+  timeExpired,
+  autoSave,
 } from '../../features/exam-engine/state/examSessionSlice';
 
 export const useExamSession = () => {
@@ -48,12 +53,32 @@ export const useExamSession = () => {
     dispatch(bookmarkQuestion(questionId));
   }, [dispatch]);
 
+  const updateTimerValue = useCallback((remainingMs: number) => {
+    dispatch(updateTimer(remainingMs));
+  }, [dispatch]);
+
+  const pauseExamTimer = useCallback(() => {
+    dispatch(pauseTimer());
+  }, [dispatch]);
+
+  const resumeExamTimer = useCallback(() => {
+    dispatch(resumeTimer());
+  }, [dispatch]);
+
+  const handleTimeExpired = useCallback(() => {
+    dispatch(timeExpired());
+  }, [dispatch]);
+
   const finishSession = useCallback(() => {
     dispatch(endSession());
   }, [dispatch]);
 
   const startReview = useCallback((showCorrectAnswers = false) => {
     dispatch(enterReviewMode({ showCorrectAnswers }));
+  }, [dispatch]);
+
+  const triggerAutoSave = useCallback(() => {
+    dispatch(autoSave());
   }, [dispatch]);
 
   const resetSession = useCallback(() => {
@@ -77,14 +102,23 @@ export const useExamSession = () => {
       ? examSession.bookmarkedQuestions.includes(examSession.questions[examSession.currentQuestionIndex])
       : false,
     
+    // Timer helpers
+    hasTimeLimit: examSession.remainingTimeMs !== null,
+    isTimedExam: examSession.remainingTimeMs !== null && examSession.remainingTimeMs > 0,
+    
     // Actions
     startExamSession,
     answerCurrentQuestion,
     navigateQuestion,
     toggleFlag,
     toggleBookmark,
+    updateTimer: updateTimerValue,
+    pauseTimer: pauseExamTimer,
+    resumeTimer: resumeExamTimer,
+    handleTimeExpired,
     finishSession,
     startReview,
     resetSession,
+    autoSave: triggerAutoSave,
   };
 };

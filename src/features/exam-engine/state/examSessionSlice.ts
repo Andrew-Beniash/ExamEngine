@@ -117,8 +117,12 @@ export const examSessionSlice = createSlice({
     },
 
     updateTimer: (state, action: PayloadAction<number>) => {
-      if (state.remainingTimeMs !== null) {
-        state.remainingTimeMs = action.payload;
+      state.remainingTimeMs = action.payload;
+      if (action.payload <= 0) {
+        // Auto-end session when time expires
+        state.isActive = false;
+        state.endTime = Date.now();
+        state.isTimerRunning = false;
       }
     },
 
@@ -151,6 +155,13 @@ export const examSessionSlice = createSlice({
     },
 
     clearSession: () => initialState,
+
+    timeExpired: (state) => {
+      state.isActive = false;
+      state.endTime = Date.now();
+      state.isTimerRunning = false;
+      state.remainingTimeMs = 0;
+    },
   },
 });
 
@@ -168,6 +179,7 @@ export const {
   autoSave,
   restoreSession,
   clearSession,
+  timeExpired,
 } = examSessionSlice.actions;
 
 export default examSessionSlice.reducer;
