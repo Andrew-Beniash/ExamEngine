@@ -1,5 +1,5 @@
 export const DATABASE_NAME = 'exam_engine.db';
-export const DATABASE_VERSION = 1;
+export const DATABASE_VERSION = 2; // Increment version for new tables
 
 export const CREATE_TABLES = [
   `CREATE TABLE IF NOT EXISTS question (
@@ -62,6 +62,23 @@ export const CREATE_TABLES = [
     signature TEXT NOT NULL,
     installed_at INTEGER NOT NULL,
     status TEXT NOT NULL CHECK (status IN ('active', 'disabled', 'updating'))
+  );`,
+
+  // New tables for tip functionality
+  `CREATE TABLE IF NOT EXISTS tip_bookmark (
+    tip_id TEXT NOT NULL,
+    device_guid TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (tip_id, device_guid),
+    FOREIGN KEY (tip_id) REFERENCES tip(id)
+  );`,
+
+  `CREATE TABLE IF NOT EXISTS tip_view_history (
+    tip_id TEXT NOT NULL,
+    device_guid TEXT NOT NULL,
+    viewed_at INTEGER NOT NULL,
+    PRIMARY KEY (tip_id, device_guid),
+    FOREIGN KEY (tip_id) REFERENCES tip(id)
   );`
 ];
 
@@ -72,5 +89,15 @@ export const CREATE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_attempt_started_at ON attempt(started_at);',
   'CREATE INDEX IF NOT EXISTS idx_attempt_device_guid ON attempt(device_guid);',
   'CREATE INDEX IF NOT EXISTS idx_tip_topic_ids ON tip(topic_ids);',
-  'CREATE INDEX IF NOT EXISTS idx_pack_status ON pack(status);'
+  'CREATE INDEX IF NOT EXISTS idx_pack_status ON pack(status);',
+  
+  // New indexes for tip functionality
+  'CREATE INDEX IF NOT EXISTS idx_tip_bookmark_device ON tip_bookmark(device_guid);',
+  'CREATE INDEX IF NOT EXISTS idx_tip_bookmark_created ON tip_bookmark(created_at);',
+  'CREATE INDEX IF NOT EXISTS idx_tip_view_device ON tip_view_history(device_guid);',
+  'CREATE INDEX IF NOT EXISTS idx_tip_view_viewed_at ON tip_view_history(viewed_at);',
+  
+  // Full-text search indexes for tips (if using FTS)
+  'CREATE INDEX IF NOT EXISTS idx_tip_title ON tip(title);',
+  'CREATE INDEX IF NOT EXISTS idx_tip_body ON tip(body);'
 ];
