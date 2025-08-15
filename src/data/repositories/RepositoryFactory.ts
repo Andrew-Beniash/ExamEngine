@@ -35,4 +35,9 @@ export class RepositoryFactory {
     }
     return this.tipRepository;
   }
+
+  // UserPreferencesRepository is a static class that doesn't need initialization
+  static getUserPreferencesRepository() {
+    return require('./UserPreferencesRepository').UserPreferencesRepository;
+  }
 }
