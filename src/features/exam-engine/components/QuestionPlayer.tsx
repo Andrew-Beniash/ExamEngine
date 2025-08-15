@@ -4,6 +4,7 @@ import { Question } from '../../../shared/types/database';
 import SingleChoiceRenderer from './renderers/SingleChoiceRenderer';
 import MultiChoiceRenderer from './renderers/MultiChoiceRenderer';
 import ScenarioRenderer from './renderers/ScenarioRenderer';
+import OrderingRenderer from './renderers/OrderingRenderer';
 import QuestionNavigation from './QuestionNavigation';
 
 interface QuestionPlayerProps {
@@ -84,8 +85,7 @@ const QuestionPlayer: React.FC<QuestionPlayerProps> = ({
       case 'scenario':
         return <ScenarioRenderer {...commonProps} />;
       case 'order':
-        // TODO: Implement OrderingRenderer
-        return <SingleChoiceRenderer {...commonProps} />;
+        return <OrderingRenderer {...commonProps} />;
       default:
         return <SingleChoiceRenderer {...commonProps} />;
     }

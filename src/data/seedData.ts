@@ -246,3 +246,37 @@ export class SeedDataManager {
     }
   }
 }
+
+export const sampleOrderingQuestion = {
+  id: 'test-order-1',
+  type: 'order' as const,
+  stem: '<p>Arrange the following <strong>BABOK Business Analysis Planning</strong> activities in the correct order according to the knowledge area workflow:</p>',
+  topicIds: ['planning'],
+  choices: [
+    { 
+      id: 'plan-ba-approach', 
+      text: 'Plan Business Analysis Approach' 
+    },
+    { 
+      id: 'plan-stakeholder-engagement', 
+      text: 'Plan Stakeholder Engagement' 
+    },
+    { 
+      id: 'plan-ba-governance', 
+      text: 'Plan Business Analysis Governance' 
+    },
+    { 
+      id: 'plan-ba-info-mgmt', 
+      text: 'Plan Business Analysis Information Management' 
+    },
+  ],
+  correctOrder: [
+    'plan-ba-approach',
+    'plan-ba-governance', 
+    'plan-stakeholder-engagement',
+    'plan-ba-info-mgmt'
+  ],
+  difficulty: 'med' as const,
+  explanation: '<p>The correct sequence follows the BABOK planning knowledge area workflow:</p><ol><li><strong>Plan Business Analysis Approach</strong> - First establish the overall approach</li><li><strong>Plan Business Analysis Governance</strong> - Define governance structure</li><li><strong>Plan Stakeholder Engagement</strong> - Plan how to engage stakeholders</li><li><strong>Plan Business Analysis Information Management</strong> - Plan information handling</li></ol>',
+  packId: 'cbap-test-pack'
+};
