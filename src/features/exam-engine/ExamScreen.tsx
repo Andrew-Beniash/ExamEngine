@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Alert, TouchableOpacity, Modal } from 'react-native';
 import { useExamSession } from '../../shared/hooks';
 import { RepositoryFactory } from '../../data/repositories/RepositoryFactory';
 import { Question } from '../../shared/types/database';
@@ -7,13 +7,29 @@ import { ExamController } from './domain';
 import QuestionPlayer from './components/QuestionPlayer';
 import ExamTimer from './components/ExamTimer';
 import { useAutoSave } from './hooks/useAutoSave';
+import { useMasteryTracking } from './hooks/useMasteryTracking';
 
 const ExamScreen = () => {
   const examSession = useExamSession();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now());
+  const [masteryFeedback, setMasteryFeedback] = useState<string>('');
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [_showResultsAd, setShowResultsAd] = useState(false);
   const examController = ExamController.getInstance();
+
+  // Initialize mastery tracking
+  const {
+    trackQuestionAttempt,
+    endMasterySession,
+    getMasteryFeedback,
+    isTrackingEnabled,
+  } = useMasteryTracking({
+    enableRealTimeTracking: true,
+    enableRecommendations: true,
+    autoStartLearningSession: true,
+  });
 
   // Enable auto-save functionality
   useAutoSave(questions);
@@ -44,10 +60,66 @@ const ExamScreen = () => {
     setQuestionStartTime(Date.now());
   }, [examSession.currentQuestionIndex]);
 
-  const handleAnswerChange = (questionIndex: number, selectedIds: string[]) => {
+  const calculateIsCorrect = useCallback((question: Question, selectedIds: string[]): boolean => {
+    if (question.type === 'single' || question.type === 'multi') {
+      const correctAnswers = question.correct || [];
+      if (selectedIds.length !== correctAnswers.length) return false;
+      return correctAnswers.every(id => selectedIds.includes(id));
+    }
+    
+    if (question.type === 'order') {
+      const correctOrder = question.correctOrder || [];
+      if (selectedIds.length !== correctOrder.length) return false;
+      return selectedIds.every((id, index) => id === correctOrder[index]);
+    }
+    
+    // For scenario questions, use the same logic as single/multi
+    const correctAnswers = question.correct || [];
+    if (selectedIds.length !== correctAnswers.length) return false;
+    return correctAnswers.every(id => selectedIds.includes(id));
+  }, []);
+
+  const handleAnswerChange = useCallback(async (questionIndex: number, selectedIds: string[]) => {
     const timeSpent = Date.now() - questionStartTime;
+    const currentQuestion = questions[questionIndex];
+    
+    if (!currentQuestion) return;
+
+    // Calculate if answer is correct
+    const isCorrect = calculateIsCorrect(currentQuestion, selectedIds);
+    
+    // Update exam session
     examSession.answerCurrentQuestion(selectedIds, timeSpent);
-  };
+    
+    // Track for mastery system
+    if (isTrackingEnabled) {
+      try {
+        await trackQuestionAttempt(currentQuestion, selectedIds, timeSpent, isCorrect);
+        
+        // Get mastery feedback and show it
+        const feedback = getMasteryFeedback(currentQuestion, isCorrect);
+        if (feedback && !examSession.isReviewMode) {
+          setMasteryFeedback(feedback);
+          setShowFeedbackModal(true);
+          
+          // Auto-hide feedback after 3 seconds
+          setTimeout(() => {
+            setShowFeedbackModal(false);
+          }, 3000);
+        }
+      } catch (error) {
+        console.error('Error tracking mastery:', error);
+      }
+    }
+  }, [
+    questionStartTime, 
+    questions, 
+    examSession, 
+    isTrackingEnabled, 
+    trackQuestionAttempt, 
+    getMasteryFeedback,
+    calculateIsCorrect
+  ]);
 
   const handleQuestionChange = (index: number) => {
     examSession.navigateQuestion(index);
@@ -86,8 +158,13 @@ const ExamScreen = () => {
                 examSession.answers,
                 examSession.timeSpentPerQuestion,
                 examSession.packId || 'sample-pack',
-                examSession.templateId || undefined // Convert null to undefined
+                examSession.templateId || undefined
               );
+
+              // End mastery tracking session
+              if (isTrackingEnabled) {
+                await endMasterySession();
+              }
 
               // Show results
               Alert.alert(
@@ -95,21 +172,32 @@ const ExamScreen = () => {
                 `Final Score: ${results.score.toFixed(1)}%\n` +
                 `Correct: ${results.correctAnswers}/${results.totalQuestions}\n` +
                 `Time: ${Math.round(results.timeSpent / 1000 / 60)} minutes\n\n` +
-                `Topic Breakdown:\n` +
-                Object.entries(results.perTopicStats)
-                  .map(([topic, stats]) => {
-                    const topicStats = stats as { correct: number; total: number; percentage: number };
-                    return `${topic}: ${topicStats.percentage.toFixed(0)}%`;
-                  })
-                  .join('\n')
+                `🎯 Your proficiency has been updated based on performance!`,
+                [
+                  {
+                    text: 'View Detailed Results',
+                    onPress: () => showDetailedResults(results)
+                  },
+                  {
+                    text: 'OK',
+                    onPress: () => {}
+                  }
+                ]
               );
 
               // End session
               examSession.finishSession();
+              
+              // Show results ad
+              setShowResultsAd(true);
             } catch (error) {
               console.error('Error finishing exam:', error);
               Alert.alert('Error', 'Failed to save results, but exam will end');
               examSession.finishSession();
+              
+              if (isTrackingEnabled) {
+                await endMasterySession();
+              }
             }
           }
         }
@@ -117,8 +205,24 @@ const ExamScreen = () => {
     );
   };
 
+  const showDetailedResults = (results: any) => {
+    const topicBreakdown = Object.entries(results.perTopicStats)
+      .map(([topic, stats]) => {
+        const topicStats = stats as { correct: number; total: number; percentage: number };
+        return `• ${getTopicDisplayName(topic)}: ${topicStats.percentage.toFixed(0)}% (${topicStats.correct}/${topicStats.total})`;
+      })
+      .join('\n');
+
+    Alert.alert(
+      'Detailed Results',
+      `Overall Score: ${results.score.toFixed(1)}%\n\n` +
+      `Topic Breakdown:\n${topicBreakdown}\n\n` +
+      `📊 Your mastery levels have been updated. Check the Profile tab to see your progress!`
+    );
+  };
+
   const startReview = () => {
-    examSession.startReview(true); // Show correct answers in review
+    examSession.startReview(true);
   };
 
   const handleTimeExpired = useCallback(async () => {
@@ -128,7 +232,6 @@ const ExamScreen = () => {
       [{ text: 'OK', onPress: () => {} }]
     );
 
-    // Auto-submit the exam
     try {
       const results = examController.calculateResults(
         examSession.sessionId!,
@@ -146,29 +249,58 @@ const ExamScreen = () => {
         examSession.templateId || undefined
       );
 
+      if (isTrackingEnabled) {
+        await endMasterySession();
+      }
+
       examSession.handleTimeExpired();
 
-      // Show final results after a brief delay
       setTimeout(() => {
         Alert.alert(
           'Exam Auto-Submitted',
           `Final Score: ${results.score.toFixed(1)}%\n` +
-          `Correct: ${results.correctAnswers}/${results.totalQuestions}\n` +
           `Time: Complete\n\n` +
-          `Topic Breakdown:\n` +
-          Object.entries(results.perTopicStats)
-            .map(([topic, stats]) => {
-              const topicStats = stats as { correct: number; total: number; percentage: number };
-              return `${topic}: ${topicStats.percentage.toFixed(0)}%`;
-            })
-            .join('\n')
+          `🎯 Your mastery data has been updated!`
         );
       }, 1000);
     } catch (error) {
       console.error('Error auto-submitting exam:', error);
       examSession.handleTimeExpired();
+      
+      if (isTrackingEnabled) {
+        await endMasterySession();
+      }
     }
-  }, [examController, examSession, questions]);
+  }, [examController, examSession, questions, isTrackingEnabled, endMasterySession]);
+
+  const renderMasteryFeedbackModal = () => (
+    <Modal
+      visible={showFeedbackModal}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowFeedbackModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.feedbackContainer}>
+          <TouchableOpacity
+            style={styles.feedbackCloseButton}
+            onPress={() => setShowFeedbackModal(false)}
+          >
+            <Text style={styles.feedbackCloseText}>×</Text>
+          </TouchableOpacity>
+          
+          <Text style={styles.feedbackTitle}>Mastery Update</Text>
+          <Text style={styles.feedbackText}>{masteryFeedback}</Text>
+          
+          <View style={styles.feedbackFooter}>
+            <Text style={styles.feedbackFooterText}>
+              Track your progress in the Profile tab
+            </Text>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 
   if (!examSession.isActive) {
     return (
@@ -209,9 +341,13 @@ const ExamScreen = () => {
           <Text style={styles.answeredText}>
             Answered: {Object.keys(examSession.answers).length}
           </Text>
+          {isTrackingEnabled && (
+            <Text style={styles.masteryIndicator}>
+              🎯 Mastery tracking active
+            </Text>
+          )}
         </View>
 
-        {/* Timer in the center */}
         <View style={styles.timerContainer}>
           <ExamTimer 
             onTimeExpired={handleTimeExpired}
@@ -248,8 +384,28 @@ const ExamScreen = () => {
         isReviewMode={examSession.isReviewMode}
         showCorrectAnswers={examSession.showCorrectAnswers}
       />
+
+      {/* Mastery Feedback Modal */}
+      {renderMasteryFeedbackModal()}
     </View>
   );
+};
+
+// Helper function
+const getTopicDisplayName = (topicId: string): string => {
+  const topicNames: Record<string, string> = {
+    'planning': 'BA Planning',
+    'elicitation': 'Elicitation',
+    'requirements-analysis': 'Requirements',
+    'traceability': 'Traceability',
+    'validation': 'Validation',
+    'solution-evaluation': 'Solution Eval',
+    'strategy-analysis': 'Strategy',
+    'stakeholder-engagement': 'Stakeholders',
+    'governance': 'Governance',
+    'techniques': 'Techniques',
+  };
+  return topicNames[topicId] || topicId.replace('-', ' ');
 };
 
 const styles = StyleSheet.create({
@@ -302,6 +458,12 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 2,
   },
+  masteryIndicator: {
+    fontSize: 12,
+    color: '#059669',
+    marginTop: 2,
+    fontWeight: '500',
+  },
   headerButtons: {
     flexDirection: 'row',
     gap: 8,
@@ -341,6 +503,68 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '600',
     textAlign: 'center',
+  },
+
+  // Mastery Feedback Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  feedbackContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    maxWidth: '90%',
+    width: 320,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  feedbackCloseButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
+  },
+  feedbackCloseText: {
+    fontSize: 20,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  feedbackTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  feedbackText: {
+    fontSize: 16,
+    color: '#6B7280',
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  feedbackFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    paddingTop: 12,
+  },
+  feedbackFooterText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });
 

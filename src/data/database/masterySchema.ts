@@ -1,88 +1,6 @@
-export const DATABASE_NAME = 'exam_engine.db';
-export const DATABASE_VERSION = 3; // Increment version for mastery tables
+// Add these tables to your existing schema.ts file
 
-export const CREATE_TABLES = [
-  // Existing tables
-  `CREATE TABLE IF NOT EXISTS question (
-    id TEXT PRIMARY KEY,
-    type TEXT NOT NULL CHECK (type IN ('single', 'multi', 'scenario', 'order')),
-    stem TEXT NOT NULL,
-    topic_ids TEXT NOT NULL,
-    choices TEXT,
-    correct TEXT,
-    correct_order TEXT,
-    difficulty TEXT NOT NULL CHECK (difficulty IN ('easy', 'med', 'hard')),
-    explanation TEXT,
-    exhibits TEXT,
-    pack_id TEXT NOT NULL
-  );`,
-  
-  `CREATE TABLE IF NOT EXISTS exam_template (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    duration_minutes INTEGER NOT NULL,
-    sections TEXT NOT NULL,
-    calculator_rules TEXT,
-    pack_id TEXT NOT NULL
-  );`,
-  
-  `CREATE TABLE IF NOT EXISTS attempt (
-    id TEXT PRIMARY KEY,
-    template_id TEXT,
-    pack_id TEXT NOT NULL,
-    started_at INTEGER NOT NULL,
-    ended_at INTEGER,
-    score REAL,
-    summary TEXT,
-    device_guid TEXT NOT NULL
-  );`,
-  
-  `CREATE TABLE IF NOT EXISTS attempt_item (
-    attempt_id TEXT NOT NULL,
-    question_id TEXT NOT NULL,
-    given TEXT,
-    correct INTEGER NOT NULL CHECK (correct IN (0, 1)),
-    time_spent_ms INTEGER NOT NULL,
-    PRIMARY KEY (attempt_id, question_id),
-    FOREIGN KEY (attempt_id) REFERENCES attempt(id),
-    FOREIGN KEY (question_id) REFERENCES question(id)
-  );`,
-  
-  `CREATE TABLE IF NOT EXISTS tip (
-    id TEXT PRIMARY KEY,
-    topic_ids TEXT NOT NULL,
-    title TEXT NOT NULL,
-    body TEXT NOT NULL,
-    pack_id TEXT NOT NULL
-  );`,
-  
-  `CREATE TABLE IF NOT EXISTS pack (
-    id TEXT PRIMARY KEY,
-    version TEXT NOT NULL,
-    sha256 TEXT NOT NULL,
-    signature TEXT NOT NULL,
-    installed_at INTEGER NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('active', 'disabled', 'updating'))
-  );`,
-
-  // Existing tip tables
-  `CREATE TABLE IF NOT EXISTS tip_bookmark (
-    tip_id TEXT NOT NULL,
-    device_guid TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    PRIMARY KEY (tip_id, device_guid),
-    FOREIGN KEY (tip_id) REFERENCES tip(id)
-  );`,
-
-  `CREATE TABLE IF NOT EXISTS tip_view_history (
-    tip_id TEXT NOT NULL,
-    device_guid TEXT NOT NULL,
-    viewed_at INTEGER NOT NULL,
-    PRIMARY KEY (tip_id, device_guid),
-    FOREIGN KEY (tip_id) REFERENCES tip(id)
-  );`,
-
-  // NEW MASTERY TABLES
+export const MASTERY_TABLES = [
   `CREATE TABLE IF NOT EXISTS topic_proficiency (
     topic_id TEXT NOT NULL,
     device_guid TEXT NOT NULL,
@@ -108,14 +26,14 @@ export const CREATE_TABLES = [
     device_guid TEXT NOT NULL,
     start_time INTEGER NOT NULL,
     end_time INTEGER,
-    topics_studied TEXT NOT NULL,
+    topics_studied TEXT NOT NULL, -- JSON array
     questions_answered INTEGER NOT NULL DEFAULT 0,
     correct_answers INTEGER NOT NULL DEFAULT 0,
     time_spent INTEGER NOT NULL DEFAULT 0,
-    proficiency_changes TEXT NOT NULL DEFAULT '{}',
-    weak_areas_improved TEXT NOT NULL DEFAULT '[]',
+    proficiency_changes TEXT NOT NULL DEFAULT '{}', -- JSON object
+    weak_areas_improved TEXT NOT NULL DEFAULT '[]', -- JSON array
     recommendation_followed TEXT,
-    session_type TEXT NOT NULL DEFAULT 'practice',
+    session_type TEXT NOT NULL DEFAULT 'practice', -- 'practice'|'exam'|'review'
     created_at INTEGER NOT NULL
   );`,
 
@@ -138,16 +56,16 @@ export const CREATE_TABLES = [
     type TEXT NOT NULL,
     title TEXT NOT NULL,
     description TEXT NOT NULL,
-    topic_ids TEXT NOT NULL,
+    topic_ids TEXT NOT NULL, -- JSON array
     question_count INTEGER NOT NULL,
     estimated_duration INTEGER NOT NULL,
     difficulty TEXT NOT NULL,
     priority INTEGER NOT NULL,
     reasoning TEXT NOT NULL,
-    expected_impact TEXT NOT NULL,
+    expected_impact TEXT NOT NULL, -- JSON object
     created_at INTEGER NOT NULL,
     expires_at INTEGER NOT NULL,
-    used INTEGER NOT NULL DEFAULT 0
+    used INTEGER NOT NULL DEFAULT 0 -- 0 = not used, 1 = used
   );`,
 
   `CREATE TABLE IF NOT EXISTS question_performance (
@@ -165,34 +83,16 @@ export const CREATE_TABLES = [
   );`
 ];
 
-export const CREATE_INDEXES = [
-  // Existing indexes
-  'CREATE INDEX IF NOT EXISTS idx_question_topic_ids ON question(topic_ids);',
-  'CREATE INDEX IF NOT EXISTS idx_question_pack_id ON question(pack_id);',
-  'CREATE INDEX IF NOT EXISTS idx_question_difficulty ON question(difficulty);',
-  'CREATE INDEX IF NOT EXISTS idx_attempt_started_at ON attempt(started_at);',
-  'CREATE INDEX IF NOT EXISTS idx_attempt_device_guid ON attempt(device_guid);',
-  'CREATE INDEX IF NOT EXISTS idx_tip_topic_ids ON tip(topic_ids);',
-  'CREATE INDEX IF NOT EXISTS idx_pack_status ON pack(status);',
-  'CREATE INDEX IF NOT EXISTS idx_tip_bookmark_device ON tip_bookmark(device_guid);',
-  'CREATE INDEX IF NOT EXISTS idx_tip_bookmark_created ON tip_bookmark(created_at);',
-  'CREATE INDEX IF NOT EXISTS idx_tip_view_device ON tip_view_history(device_guid);',
-  'CREATE INDEX IF NOT EXISTS idx_tip_view_viewed_at ON tip_view_history(viewed_at);',
-  'CREATE INDEX IF NOT EXISTS idx_tip_title ON tip(title);',
-  'CREATE INDEX IF NOT EXISTS idx_tip_body ON tip(body);',
-
-  // NEW MASTERY INDEXES
+export const MASTERY_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_topic_proficiency_device ON topic_proficiency(device_guid);',
   'CREATE INDEX IF NOT EXISTS idx_topic_proficiency_topic ON topic_proficiency(topic_id);',
   'CREATE INDEX IF NOT EXISTS idx_topic_proficiency_last_practiced ON topic_proficiency(last_practiced);',
   'CREATE INDEX IF NOT EXISTS idx_topic_proficiency_needs_review ON topic_proficiency(needs_review);',
   'CREATE INDEX IF NOT EXISTS idx_topic_proficiency_next_review ON topic_proficiency(next_review_date);',
-  'CREATE INDEX IF NOT EXISTS idx_topic_proficiency_proficiency ON topic_proficiency(proficiency);',
   
   'CREATE INDEX IF NOT EXISTS idx_learning_session_device ON learning_session(device_guid);',
   'CREATE INDEX IF NOT EXISTS idx_learning_session_start_time ON learning_session(start_time);',
   'CREATE INDEX IF NOT EXISTS idx_learning_session_type ON learning_session(session_type);',
-  'CREATE INDEX IF NOT EXISTS idx_learning_session_end_time ON learning_session(end_time);',
   
   'CREATE INDEX IF NOT EXISTS idx_mastery_goal_device ON mastery_goal(device_guid);',
   'CREATE INDEX IF NOT EXISTS idx_mastery_goal_topic ON mastery_goal(topic_id);',
@@ -203,12 +103,10 @@ export const CREATE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_practice_recommendation_priority ON practice_recommendation(priority);',
   'CREATE INDEX IF NOT EXISTS idx_practice_recommendation_expires ON practice_recommendation(expires_at);',
   'CREATE INDEX IF NOT EXISTS idx_practice_recommendation_used ON practice_recommendation(used);',
-  'CREATE INDEX IF NOT EXISTS idx_practice_recommendation_type ON practice_recommendation(type);',
   
   'CREATE INDEX IF NOT EXISTS idx_question_performance_device ON question_performance(device_guid);',
   'CREATE INDEX IF NOT EXISTS idx_question_performance_topic ON question_performance(topic_id);',
   'CREATE INDEX IF NOT EXISTS idx_question_performance_question ON question_performance(question_id);',
   'CREATE INDEX IF NOT EXISTS idx_question_performance_date ON question_performance(attempt_date);',
-  'CREATE INDEX IF NOT EXISTS idx_question_performance_session ON question_performance(session_id);',
-  'CREATE INDEX IF NOT EXISTS idx_question_performance_correct ON question_performance(is_correct);'
+  'CREATE INDEX IF NOT EXISTS idx_question_performance_session ON question_performance(session_id);'
 ];

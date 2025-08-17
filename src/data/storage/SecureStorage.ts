@@ -77,6 +77,92 @@ export class SecureStorage {
   }
 
   /**
+   * Store ad state for AdManager
+   */
+  storeAdState(adState: any): void {
+    this.storage.set('ad_state', JSON.stringify(adState));
+  }
+
+  /**
+   * Get ad state for AdManager
+   */
+  getAdState(): any | null {
+    const data = this.storage.getString('ad_state');
+    return data ? JSON.parse(data) : null;
+  }
+
+  /**
+   * Generic method to store any JSON data
+   */
+  storeJson(key: string, data: any): void {
+    this.storage.set(key, JSON.stringify(data));
+  }
+
+  /**
+   * Generic method to retrieve JSON data
+   */
+  getJson<T>(key: string): T | null {
+    const data = this.storage.getString(key);
+    return data ? JSON.parse(data) : null;
+  }
+
+  /**
+   * Store a string value
+   */
+  storeString(key: string, value: string): void {
+    this.storage.set(key, value);
+  }
+
+  /**
+   * Get a string value
+   */
+  getString(key: string): string | null {
+    return this.storage.getString(key) || null;
+  }
+
+  /**
+   * Store a boolean value
+   */
+  storeBoolean(key: string, value: boolean): void {
+    this.storage.set(key, value);
+  }
+
+  /**
+   * Get a boolean value
+   */
+  getBoolean(key: string): boolean {
+    return this.storage.getBoolean(key) || false;
+  }
+
+  /**
+   * Store a number value
+   */
+  storeNumber(key: string, value: number): void {
+    this.storage.set(key, value);
+  }
+
+  /**
+   * Get a number value
+   */
+  getNumber(key: string): number {
+    return this.storage.getNumber(key) || 0;
+  }
+
+  /**
+   * Delete a key
+   */
+  deleteKey(key: string): void {
+    this.storage.delete(key);
+  }
+
+  /**
+   * Check if a key exists
+   */
+  hasKey(key: string): boolean {
+    return this.storage.contains(key);
+  }
+
+  /**
    * Remove all data for a pack
    */
   removePack(packId: string): void {
